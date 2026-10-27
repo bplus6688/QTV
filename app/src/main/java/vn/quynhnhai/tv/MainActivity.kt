@@ -1,6 +1,5 @@
 package vn.quynhnhai.tv
 
-import android.animation.ValueAnimator
 import android.app.Activity
 import android.content.Context
 import android.graphics.Bitmap
@@ -42,10 +41,10 @@ import kotlin.concurrent.thread
 val C_BG = 0xFF0F1318.toInt()
 val C_SIDE = 0xFF0B0E12.toInt()
 val C_SURF = 0xFF1A2029.toInt()
-val C_TXT = 0xFFF2F4F7.toInt()
-val C_MUT = 0xFFA8B1BD.toInt()
-val C_AMB = 0xFFFFB547.toInt()
-val C_AMB_TXT = 0xFF1A1203.toInt()
+val C_TXT = 0xFF172B45.toInt()
+val C_MUT = 0xFF4C6077.toInt()
+val C_AMB = 0xFFFF9D2E.toInt()
+val C_AMB_TXT = 0xFFFFFFFF.toInt()
 val C_DARK = 0xFF3A4350.toInt()
 
 data class Chan(val name: String, val group: String, val url: String)
@@ -134,7 +133,7 @@ class TileAdapter(private val u: U, private val items: List<Tile>) :
         h.star.visibility = if (t.star) View.VISIBLE else View.GONE
         h.root.background = if (sel) glass(u, 16).apply {
             setStroke(maxOf(2, u.p(3)), C_AMB)
-        } else rounded(0x18FFFFFF, u.f(16))
+        } else rounded(0x55FFFFFF, u.f(16))
         h.root.scaleX = 1f
         h.root.scaleY = 1f
         h.root.translationZ = if (sel) u.f(12) else 0f
@@ -148,18 +147,17 @@ class TileAdapter(private val u: U, private val items: List<Tile>) :
 // Translucent gradient and fine highlight, supported on Android 6+.
 fun glass(u: U, radius: Int = 22): GradientDrawable =
     GradientDrawable(GradientDrawable.Orientation.TL_BR,
-        intArrayOf(0xD92A3545.toInt(), 0xB8101826.toInt())).apply {
+        intArrayOf(0xF5F6FCFF.toInt(), 0xDEE0EDF8.toInt())).apply {
         cornerRadius = u.f(radius)
-        setStroke(maxOf(1, u.p(2)), 0x45FFFFFF)
+        setStroke(maxOf(1, u.p(2)), 0xCFFFFFFF)
     }
 
-enum class Mode { WATCH, DRAWER, GROUPS, SETTINGS }
+enum class Mode { WATCH, DRAWER, GROUPS, SOURCE, PREFERENCES }
 
 class MainActivity : Activity() {
 
     private lateinit var u: U
     private lateinit var root: FrameLayout
-    private var videoAnimator: ValueAnimator? = null
     private lateinit var pv: PlayerView
     private lateinit var exo: ExoPlayer
 
@@ -180,6 +178,9 @@ class MainActivity : Activity() {
     private lateinit var numView: TextView
     private lateinit var msgView: TextView
 
+    private lateinit var preferencesPanel: LinearLayout
+    private lateinit var gear: TextView
+    private lateinit var updater: AppUpdater
     private lateinit var settings: FrameLayout
     private lateinit var qrImage: ImageView
     private lateinit var addrText: TextView
@@ -269,6 +270,7 @@ class MainActivity : Activity() {
             }
         })
 
+        updater = AppUpdater(this)
         buildUi()
         setMode(Mode.WATCH)
         loadList()
@@ -286,8 +288,8 @@ class MainActivity : Activity() {
         isFocusable = false
         overScrollMode = View.OVER_SCROLL_NEVER
         itemAnimator = null
-        clipChildren = false
-        clipToPadding = false
+        clipChildren = true
+        clipToPadding = true
         setPadding(u.p(4), u.p(8), u.p(4), u.p(8))
     }
 
@@ -363,6 +365,11 @@ class MainActivity : Activity() {
         }
         barRight.addView(barTime)
         barRight.addView(barDate)
+        bar.addView(ImageView(this).apply {
+            setImageResource(R.drawable.ic_launcher)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            contentDescription = "QTV"
+        }, LinearLayout.LayoutParams(u.p(80), u.p(80)).apply { marginEnd = u.p(24) })
         bar.addView(barLeft)
         bar.addView(barRight)
         root.addView(bar)
@@ -381,8 +388,8 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             background = glass(u, 0)
             setPadding(u.p(24), u.p(32), u.p(24), u.p(16))
-            clipChildren = false
-            clipToPadding = false
+            clipChildren = true
+            clipToPadding = true
             layoutParams = FrameLayout.LayoutParams(u.p(520), ViewGroup.LayoutParams.MATCH_PARENT)
         }
         drawerTitle = mkText(this, u, 30, true).apply {
@@ -393,7 +400,7 @@ class MainActivity : Activity() {
         drawerRv = mkRecycler().apply {
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
         }
-        drawer.addView(drawerTitle)
+        drawer.addView(brandHeader(drawerTitle))
         drawer.addView(drawerRv)
         root.addView(drawer)
 
@@ -402,8 +409,8 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             background = glass(u, 0)
             setPadding(u.p(20), u.p(32), u.p(20), u.p(16))
-            clipChildren = false
-            clipToPadding = false
+            clipChildren = true
+            clipToPadding = true
             layoutParams = FrameLayout.LayoutParams(u.p(340), ViewGroup.LayoutParams.MATCH_PARENT)
         }
         val gTitle = mkText(this, u, 30, true).apply {
@@ -413,7 +420,7 @@ class MainActivity : Activity() {
         groupsRv = mkRecycler().apply {
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
         }
-        groupsPanel.addView(gTitle)
+        groupsPanel.addView(brandHeader(gTitle))
         groupsPanel.addView(groupsRv)
         root.addView(groupsPanel)
 
@@ -442,11 +449,86 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER
             layoutParams = lp(560, 120, 1180, 720)
         }
+        settings.addView(ImageView(this).apply {
+            setImageResource(R.drawable.ic_launcher)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            contentDescription = "QTV"
+            layoutParams = lp(140, 140, 120, 90)
+        })
+        sTitle.layoutParams = lp(760, 80, 290, 120)
         settings.addView(sTitle)
+        val scanHelp = mkText(this, u, 32).apply {
+            text = "Dùng camera điện thoại quét mã QR để thêm nguồn kênh.\n\nĐiện thoại và TV cần kết nối cùng mạng Wi-Fi.\n\nDán link playlist M3U rồi bấm “Gửi sang tivi”."
+            setTextColor(C_TXT)
+            setLineSpacing(0f, 1.15f)
+            layoutParams = lp(900, 360, 120, 440)
+        }
+        settings.addView(scanHelp)
         settings.addView(statusText)
         settings.addView(qrImage)
         settings.addView(addrText)
         root.addView(settings)
+
+        preferencesPanel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = glass(u)
+            setPadding(u.p(56), u.p(40), u.p(56), u.p(40))
+            layoutParams = FrameLayout.LayoutParams(u.p(980), ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.CENTER)
+            visibility = View.GONE
+        }
+        preferencesPanel.addView(brandHeader(mkText(this, u, 46, true).apply { text = "Cài đặt" }))
+        fun option(title: String, action: () -> Unit) {
+            preferencesPanel.addView(mkText(this, u, 34, true).apply {
+                text = title
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(u.p(24), 0, u.p(24), 0)
+                isFocusable = true
+                isFocusableInTouchMode = true
+                isClickable = true
+                background = rounded(0x55FFFFFF, u.f(16))
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, u.p(92))
+                    .apply { bottomMargin = u.p(16) }
+                setOnFocusChangeListener { v, focus ->
+                    v.background = glass(u, 16).apply {
+                        if (focus) setStroke(maxOf(2, u.p(3)), C_AMB)
+                    }
+                }
+                setOnClickListener { action() }
+            })
+        }
+        option("Sửa nguồn kênh") { openSettings() }
+        option("Cập nhật ứng dụng") { updater.check() }
+        option("Người phát triển") {
+            android.app.AlertDialog.Builder(this)
+                .setTitle("Người phát triển")
+                .setMessage("Bản quyền thuộc QTV")
+                .setPositiveButton("Đóng", null).show()
+        }
+        preferencesPanel.addView(mkText(this, u, 26).apply {
+            text = "Bản quyền thuộc QTV"
+            setTextColor(C_MUT)
+            setPadding(0, u.p(12), 0, 0)
+        })
+        root.addView(preferencesPanel)
+        gear = mkText(this, u, 48, true).apply {
+            text = "⚙"
+            contentDescription = "Cài đặt"
+            gravity = Gravity.CENTER
+            background = glass(u, 18)
+            isFocusable = true
+            isFocusableInTouchMode = true
+            isClickable = true
+            layoutParams = FrameLayout.LayoutParams(u.p(80), u.p(80), Gravity.TOP or Gravity.END)
+                .apply { topMargin = u.p(36); marginEnd = u.p(40) }
+            setOnFocusChangeListener { v, focus ->
+                v.background = glass(u, 18).apply {
+                    if (focus) setStroke(maxOf(2, u.p(3)), C_AMB)
+                }
+            }
+            setOnClickListener { openPreferences() }
+        }
+        root.addView(gear)
 
         // Số kênh đang nhập
         numView = mkText(this, u, 96, true).apply {
@@ -466,6 +548,7 @@ class MainActivity : Activity() {
         // Thông báo giữa màn hình
         msgView = mkText(this, u, 40, true).apply {
             gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
             setShadowLayer(12f, 0f, 2f, Color.BLACK)
             visibility = View.GONE
             layoutParams = FrameLayout.LayoutParams(
@@ -473,17 +556,22 @@ class MainActivity : Activity() {
             ).apply { gravity = Gravity.CENTER }
         }
         root.addView(msgView)
+        root.isFocusableInTouchMode = true
+        root.requestFocus()
     }
 
     // ================= Chế độ màn hình =================
     private fun setMode(m: Mode) {
         mode = m
+        if (m != Mode.WATCH) gear.clearFocus()
         val panels = m == Mode.DRAWER || m == Mode.GROUPS
         dim.visibility = if (panels) View.VISIBLE else View.GONE
         drawer.visibility = if (panels) View.VISIBLE else View.GONE
         drawer.translationX = if (m == Mode.GROUPS) u.f(340) else 0f
         groupsPanel.visibility = if (m == Mode.GROUPS) View.VISIBLE else View.GONE
-        settings.visibility = if (m == Mode.SETTINGS) View.VISIBLE else View.GONE
+        settings.visibility = if (m == Mode.SOURCE) View.VISIBLE else View.GONE
+        preferencesPanel.visibility = if (m == Mode.PREFERENCES) View.VISIBLE else View.GONE
+        gear.visibility = if (m == Mode.WATCH || m == Mode.DRAWER || m == Mode.GROUPS) View.VISIBLE else View.GONE
         if (m != Mode.WATCH) {
             handler.removeCallbacks(hideBarRun)
             handler.removeCallbacks(clockRun)
@@ -494,23 +582,40 @@ class MainActivity : Activity() {
             Mode.GROUPS -> u.p(860)
             else -> 0
         })
-        exo.volume = if (m == Mode.SETTINGS) 0f else 1f
+        exo.volume = if (m == Mode.SOURCE || m == Mode.PREFERENCES) 0f else 1f
+    }
+
+    private fun openPreferences() {
+        stopServer()
+        say(null)
+        setMode(Mode.PREFERENCES)
+        preferencesPanel.getChildAt(1).requestFocus()
     }
 
     private fun resizeVideo(left: Int) {
-        videoAnimator?.cancel()
-        val from = (pv.layoutParams as FrameLayout.LayoutParams).leftMargin
+        // One layout change: avoid repeatedly resizing the decoder surface during playback.
         val screenWidth = resources.displayMetrics.widthPixels
-        videoAnimator = ValueAnimator.ofInt(from, left).apply {
-            duration = 220
-            addUpdateListener { animation ->
-                val inset = animation.animatedValue as Int
-                pv.layoutParams = FrameLayout.LayoutParams(
-                    screenWidth - inset, ViewGroup.LayoutParams.MATCH_PARENT
-                ).apply { leftMargin = inset }
-            }
-            start()
-        }
+        val current = pv.layoutParams as FrameLayout.LayoutParams
+        if (current.leftMargin == left && current.width == screenWidth - left) return
+        pv.layoutParams = FrameLayout.LayoutParams(
+            screenWidth - left, ViewGroup.LayoutParams.MATCH_PARENT
+        ).apply { leftMargin = left }
+        pv.requestLayout()
+    }
+
+    private fun brandHeader(title: TextView): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, u.p(104)
+        ).apply { bottomMargin = u.p(16) }
+        addView(ImageView(this@MainActivity).apply {
+            setImageResource(R.drawable.ic_launcher)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            contentDescription = "QTV"
+        }, LinearLayout.LayoutParams(u.p(76), u.p(76)).apply { marginEnd = u.p(16) })
+        title.setPadding(0, 0, 0, 0)
+        addView(title, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
     }
 
     private fun say(t: String?) {
@@ -587,13 +692,12 @@ class MainActivity : Activity() {
         }
         val cu = currentUrl()
         statusText.text = if (cu.isEmpty()) "Chưa có nguồn kênh" else "Nguồn hiện tại: " + hostOf(cu)
-        setMode(Mode.SETTINGS)
+        setMode(Mode.SOURCE)
     }
 
     private fun closeSettings() {
         stopServer()
-        setMode(Mode.WATCH)
-        if (chans.isEmpty()) say("Chưa có danh sách kênh")
+        openPreferences()
     }
 
     private fun onSourceReceived(url: String) {
@@ -731,7 +835,7 @@ class MainActivity : Activity() {
         if (dsel >= visible.size) dsel = maxOf(0, visible.size - 1)
         drawerAdapter = TileAdapter(u, tiles).also { it.selected = if (visible.isEmpty()) -1 else dsel }
         drawerRv.adapter = drawerAdapter
-        drawerTitle.text = if (groupFilter == 0) "Chuyển kênh" else "Chuyển kênh · " + groupTitle(groupFilter)
+        drawerTitle.text = if (groupFilter == 0) "Kênh" else "Kênh · " + groupTitle(groupFilter)
         if (visible.isNotEmpty()) center(drawerRv, dsel)
     }
 
@@ -820,6 +924,8 @@ class MainActivity : Activity() {
     private fun loadCurrent() {
         val c = chans.getOrNull(cur) ?: return
         say(null)
+        exo.stop()
+        exo.clearMediaItems()
         exo.setMediaItem(MediaItem.fromUri(c.url))
         exo.prepare()
         exo.playWhenReady = true
@@ -865,7 +971,19 @@ class MainActivity : Activity() {
         val right = k == KeyEvent.KEYCODE_DPAD_RIGHT
         val menu = k == KeyEvent.KEYCODE_MENU
 
-        if (mode == Mode.SETTINGS) {
+        if (menu) {
+            openPreferences()
+            return true
+        }
+        if (mode == Mode.PREFERENCES) {
+            if (back) {
+                setMode(Mode.WATCH)
+                gear.requestFocus()
+                return true
+            }
+            return super.dispatchKeyEvent(e)
+        }
+        if (mode == Mode.SOURCE) {
             if (back) {
                 closeSettings()
                 return true
@@ -873,6 +991,14 @@ class MainActivity : Activity() {
             return super.dispatchKeyEvent(e)
         }
 
+        if (gear.hasFocus() && ok) {
+            if (e.repeatCount == 0) openPreferences()
+            return true
+        }
+        if (mode == Mode.WATCH && right) {
+            gear.requestFocus()
+            return true
+        }
         if (chans.isEmpty()) {
             if (ok) {
                 loadList()
@@ -904,7 +1030,7 @@ class MainActivity : Activity() {
                     down -> zap(1)
                     left -> openDrawer()
                     ok -> openDrawer()
-                    menu -> openSettings()
+                    menu -> openPreferences()
                     back -> finish()
                     else -> return super.dispatchKeyEvent(e)
                 }
@@ -941,13 +1067,18 @@ class MainActivity : Activity() {
                 return true
             }
 
-            Mode.SETTINGS -> return super.dispatchKeyEvent(e)
+            Mode.SOURCE, Mode.PREFERENCES -> return super.dispatchKeyEvent(e)
         }
         @Suppress("UNREACHABLE_CODE")
         return true
     }
 
     // ================= Vòng đời =================
+    override fun onResume() {
+        super.onResume()
+        updater.resumePendingInstall()
+    }
+
     override fun onStart() {
         super.onStart()
         if (cur >= 0) exo.playWhenReady = true
@@ -961,7 +1092,6 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
         stopServer()
-        videoAnimator?.cancel()
         exo.release()
         super.onDestroy()
     }
