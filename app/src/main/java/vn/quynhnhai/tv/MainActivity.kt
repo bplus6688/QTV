@@ -1,5 +1,6 @@
 package vn.quynhnhai.tv
 
+import android.animation.ValueAnimator
 import android.app.Activity
 import android.content.Context
 import android.graphics.Bitmap
@@ -72,7 +73,7 @@ fun mkText(ctx: Context, u: U, size: Int, bold: Boolean = false): TextView =
         if (bold) typeface = Typeface.DEFAULT_BOLD
     }
 
-// ---------- Danh sách ô: ô đang chọn phóng to 110% và đổi sang màu hổ phách ----------
+// Channel rows: translucent surface with an amber selection outline.
 class TileAdapter(private val u: U, private val items: List<Tile>) :
     RecyclerView.Adapter<TileAdapter.VH>() {
 
@@ -91,7 +92,7 @@ class TileAdapter(private val u: U, private val items: List<Tile>) :
         val root = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(u.p(28), 0, u.p(28), 0)
+            setPadding(u.p(20), 0, u.p(20), 0)
             layoutParams = RecyclerView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, u.p(96)
             ).apply { bottomMargin = u.p(8) }
@@ -103,7 +104,7 @@ class TileAdapter(private val u: U, private val items: List<Tile>) :
             orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         }
-        val title = mkText(ctx, u, 32, true).apply {
+        val title = mkText(ctx, u, 30, true).apply {
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
         }
@@ -131,16 +132,26 @@ class TileAdapter(private val u: U, private val items: List<Tile>) :
         h.sub.text = t.sub
         h.sub.visibility = if (t.sub.isBlank()) View.GONE else View.VISIBLE
         h.star.visibility = if (t.star) View.VISIBLE else View.GONE
-        h.root.background = rounded(if (sel) C_AMB else C_SURF, u.f(14))
-        h.root.scaleX = if (sel) 1.10f else 1f
-        h.root.scaleY = if (sel) 1.10f else 1f
+        h.root.background = if (sel) glass(u, 16).apply {
+            setStroke(maxOf(2, u.p(3)), C_AMB)
+        } else rounded(0x18FFFFFF, u.f(16))
+        h.root.scaleX = 1f
+        h.root.scaleY = 1f
         h.root.translationZ = if (sel) u.f(12) else 0f
-        h.lead.setTextColor(if (sel) C_AMB_TXT else C_MUT)
-        h.title.setTextColor(if (sel) C_AMB_TXT else C_TXT)
-        h.sub.setTextColor(if (sel) C_AMB_TXT else C_MUT)
-        h.star.setTextColor(if (sel) C_AMB_TXT else C_AMB)
+        h.lead.setTextColor(if (sel) C_AMB else C_MUT)
+        h.title.setTextColor(C_TXT)
+        h.sub.setTextColor(if (sel) C_AMB else C_MUT)
+        h.star.setTextColor(C_AMB)
     }
 }
+
+// Translucent gradient and fine highlight, supported on Android 6+.
+fun glass(u: U, radius: Int = 22): GradientDrawable =
+    GradientDrawable(GradientDrawable.Orientation.TL_BR,
+        intArrayOf(0xD92A3545.toInt(), 0xB8101826.toInt())).apply {
+        cornerRadius = u.f(radius)
+        setStroke(maxOf(1, u.p(2)), 0x45FFFFFF)
+    }
 
 enum class Mode { WATCH, DRAWER, GROUPS, SETTINGS }
 
@@ -148,6 +159,7 @@ class MainActivity : Activity() {
 
     private lateinit var u: U
     private lateinit var root: FrameLayout
+    private var videoAnimator: ValueAnimator? = null
     private lateinit var pv: PlayerView
     private lateinit var exo: ExoPlayer
 
@@ -269,29 +281,6 @@ class MainActivity : Activity() {
             gravity = Gravity.TOP or Gravity.START
         }
 
-    private fun hintRow(label: String, msg: String): LinearLayout {
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        val ok = mkText(this, u, 24, true).apply {
-            text = label
-            setTextColor(C_AMB_TXT)
-            background = rounded(C_AMB, u.f(8))
-            setPadding(u.p(14), u.p(2), u.p(14), u.p(2))
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { marginEnd = u.p(10) }
-        }
-        val t = mkText(this, u, 24).apply {
-            text = msg
-            setTextColor(C_MUT)
-        }
-        row.addView(ok)
-        row.addView(t)
-        return row
-    }
-
     private fun mkRecycler(): RecyclerView = RecyclerView(this).apply {
         layoutManager = LinearLayoutManager(this@MainActivity)
         isFocusable = false
@@ -299,11 +288,14 @@ class MainActivity : Activity() {
         itemAnimator = null
         clipChildren = false
         clipToPadding = false
-        setPadding(u.p(30), u.p(12), u.p(30), u.p(12))
+        setPadding(u.p(4), u.p(8), u.p(4), u.p(8))
     }
 
     private fun buildUi() {
-        root = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
+        root = FrameLayout(this).apply {
+            background = GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                intArrayOf(0xFF263A52.toInt(), 0xFF111924.toInt(), 0xFF162D33.toInt()))
+        }
         setContentView(root)
 
         // Video luôn toàn màn hình
@@ -320,23 +312,23 @@ class MainActivity : Activity() {
         bar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(u.p(80), u.p(28), u.p(80), u.p(36))
-            setBackgroundColor(Color.argb(230, 15, 19, 24))
+            setPadding(u.p(32), u.p(22), u.p(32), u.p(22))
+            background = glass(u)
             visibility = View.GONE
             layoutParams = FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM
-            )
+            ).apply { setMargins(u.p(48), 0, u.p(48), u.p(40)) }
         }
         val barLeft = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         }
-        barNum = mkText(this, u, 56, true).apply {
+        barNum = mkText(this, u, 38, true).apply {
             gravity = Gravity.CENTER
             setTextColor(C_AMB_TXT)
             background = rounded(C_AMB, u.f(16))
-            layoutParams = LinearLayout.LayoutParams(u.p(104), u.p(104))
+            layoutParams = LinearLayout.LayoutParams(u.p(76), u.p(76))
         }
         val barCol = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -344,7 +336,7 @@ class MainActivity : Activity() {
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
             ).apply { marginStart = u.p(28) }
         }
-        barName = mkText(this, u, 56, true).apply {
+        barName = mkText(this, u, 38, true).apply {
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
         }
@@ -363,8 +355,8 @@ class MainActivity : Activity() {
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
             )
         }
-        barTime = mkText(this, u, 104, true).apply { gravity = Gravity.END }
-        barDate = mkText(this, u, 32).apply {
+        barTime = mkText(this, u, 48, true).apply { gravity = Gravity.END }
+        barDate = mkText(this, u, 24).apply {
             gravity = Gravity.END
             setTextColor(C_MUT)
             setPadding(0, u.p(6), 0, 0)
@@ -377,7 +369,7 @@ class MainActivity : Activity() {
 
         // Lớp tối khi mở danh sách
         dim = View(this).apply {
-            setBackgroundColor(Color.argb(140, 8, 10, 13))
+            setBackgroundColor(Color.TRANSPARENT)
             layoutParams = FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
             )
@@ -387,11 +379,11 @@ class MainActivity : Activity() {
         // Ngăn kéo chuyển kênh (bấm Trái khi đang xem)
         drawer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(C_BG)
-            setPadding(u.p(40), u.p(48), u.p(40), u.p(48))
+            background = glass(u, 0)
+            setPadding(u.p(24), u.p(32), u.p(24), u.p(16))
             clipChildren = false
             clipToPadding = false
-            layoutParams = FrameLayout.LayoutParams(u.p(620), ViewGroup.LayoutParams.MATCH_PARENT)
+            layoutParams = FrameLayout.LayoutParams(u.p(520), ViewGroup.LayoutParams.MATCH_PARENT)
         }
         drawerTitle = mkText(this, u, 30, true).apply {
             maxLines = 1
@@ -399,59 +391,48 @@ class MainActivity : Activity() {
             setPadding(0, 0, 0, u.p(18))
         }
         drawerRv = mkRecycler().apply {
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, u.p(700))
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
         }
         drawer.addView(drawerTitle)
         drawer.addView(drawerRv)
-        drawer.addView(hintRow("OK", "Chuyển kênh").apply { setPadding(0, u.p(12), 0, 0) })
-        drawer.addView(hintRow("Giữ OK", "Thêm/bỏ yêu thích").apply { setPadding(0, u.p(10), 0, 0) })
-        drawer.addView(hintRow("Trái", "Nhóm kênh").apply { setPadding(0, u.p(10), 0, 0) })
         root.addView(drawer)
 
         // Bảng nhóm kênh (bấm Trái lần nữa)
         groupsPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(C_SIDE)
-            setPadding(u.p(40), u.p(48), u.p(40), u.p(48))
+            background = glass(u, 0)
+            setPadding(u.p(20), u.p(32), u.p(20), u.p(16))
             clipChildren = false
             clipToPadding = false
-            layoutParams = FrameLayout.LayoutParams(u.p(520), ViewGroup.LayoutParams.MATCH_PARENT)
+            layoutParams = FrameLayout.LayoutParams(u.p(340), ViewGroup.LayoutParams.MATCH_PARENT)
         }
         val gTitle = mkText(this, u, 30, true).apply {
             text = "Nhóm kênh"
             setPadding(0, 0, 0, u.p(18))
         }
         groupsRv = mkRecycler().apply {
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, u.p(780))
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
         }
         groupsPanel.addView(gTitle)
         groupsPanel.addView(groupsRv)
-        groupsPanel.addView(hintRow("OK", "Chọn nhóm").apply { setPadding(0, u.p(12), 0, 0) })
-        groupsPanel.addView(hintRow("Phải", "Danh sách kênh").apply { setPadding(0, u.p(10), 0, 0) })
         root.addView(groupsPanel)
 
         // Màn hình đổi nguồn kênh (quét QR bằng điện thoại)
         settings = FrameLayout(this).apply {
-            setBackgroundColor(C_BG)
+            background = glass(u, 0)
             visibility = View.GONE
             layoutParams = FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
             )
         }
         val sTitle = mkText(this, u, 60, true).apply {
-            text = "Đổi nguồn kênh"
+            text = "Nguồn kênh"
             layoutParams = lp(900, 80, 120, 140)
-        }
-        val sSteps = mkText(this, u, 34).apply {
-            text = "1. Điện thoại và tivi dùng cùng Wi-Fi\n\n2. Quét mã QR bên phải bằng camera điện thoại\n\n3. Dán link playlist M3U rồi bấm “Gửi sang tivi”"
-            setLineSpacing(0f, 1.2f)
-            layoutParams = lp(900, 360, 120, 260)
         }
         statusText = mkText(this, u, 30, true).apply {
             setTextColor(C_AMB)
-            layoutParams = lp(900, 60, 120, 700)
+            layoutParams = lp(900, 160, 120, 300)
         }
-        val sHint = hintRow("Quay lại", "Đóng").apply { layoutParams = lp(900, 60, 120, 900) }
         qrImage = ImageView(this).apply {
             setBackgroundColor(Color.WHITE)
             layoutParams = lp(560, 560, 1180, 140)
@@ -462,9 +443,7 @@ class MainActivity : Activity() {
             layoutParams = lp(560, 120, 1180, 720)
         }
         settings.addView(sTitle)
-        settings.addView(sSteps)
         settings.addView(statusText)
-        settings.addView(sHint)
         settings.addView(qrImage)
         settings.addView(addrText)
         root.addView(settings)
@@ -502,7 +481,7 @@ class MainActivity : Activity() {
         val panels = m == Mode.DRAWER || m == Mode.GROUPS
         dim.visibility = if (panels) View.VISIBLE else View.GONE
         drawer.visibility = if (panels) View.VISIBLE else View.GONE
-        drawer.translationX = if (m == Mode.GROUPS) u.f(520) else 0f
+        drawer.translationX = if (m == Mode.GROUPS) u.f(340) else 0f
         groupsPanel.visibility = if (m == Mode.GROUPS) View.VISIBLE else View.GONE
         settings.visibility = if (m == Mode.SETTINGS) View.VISIBLE else View.GONE
         if (m != Mode.WATCH) {
@@ -510,7 +489,28 @@ class MainActivity : Activity() {
             handler.removeCallbacks(clockRun)
             bar.visibility = View.GONE
         }
+        resizeVideo(when (m) {
+            Mode.DRAWER -> u.p(520)
+            Mode.GROUPS -> u.p(860)
+            else -> 0
+        })
         exo.volume = if (m == Mode.SETTINGS) 0f else 1f
+    }
+
+    private fun resizeVideo(left: Int) {
+        videoAnimator?.cancel()
+        val from = (pv.layoutParams as FrameLayout.LayoutParams).leftMargin
+        val screenWidth = resources.displayMetrics.widthPixels
+        videoAnimator = ValueAnimator.ofInt(from, left).apply {
+            duration = 220
+            addUpdateListener { animation ->
+                val inset = animation.animatedValue as Int
+                pv.layoutParams = FrameLayout.LayoutParams(
+                    screenWidth - inset, ViewGroup.LayoutParams.MATCH_PARENT
+                ).apply { leftMargin = inset }
+            }
+            start()
+        }
     }
 
     private fun say(t: String?) {
@@ -593,7 +593,7 @@ class MainActivity : Activity() {
     private fun closeSettings() {
         stopServer()
         setMode(Mode.WATCH)
-        if (chans.isEmpty()) say("Chưa có danh sách kênh. OK: thử lại · Trái: đổi nguồn kênh")
+        if (chans.isEmpty()) say("Chưa có danh sách kênh")
     }
 
     private fun onSourceReceived(url: String) {
@@ -671,7 +671,7 @@ class MainActivity : Activity() {
         cur = -1
         if (list.isEmpty()) {
             if (hasUrl) {
-                say("Chưa có danh sách kênh. OK: thử lại · Trái: đổi nguồn kênh")
+                say("Chưa có danh sách kênh")
             } else {
                 say(null)
                 openSettings()
@@ -717,14 +717,14 @@ class MainActivity : Activity() {
 
     private fun posOfCur(): Int = visible.indexOf(cur).let { if (it < 0) 0 else it }
 
-    private fun center(rv: RecyclerView, pos: Int, heightDesign: Int) {
+    private fun center(rv: RecyclerView, pos: Int) {
         (rv.layoutManager as LinearLayoutManager)
-            .scrollToPositionWithOffset(pos, u.p((heightDesign - 96) / 2))
+            .scrollToPositionWithOffset(pos, maxOf(0, ((if (rv.height > 0) rv.height else u.p(950)) - u.p(96)) / 2))
     }
 
     private fun buildDrawer() {
         val tiles = if (visible.isEmpty()) {
-            listOf(Tile("", "Chưa có kênh", "Giữ OK trên một kênh để thêm vào Yêu thích"))
+            listOf(Tile("", "Chưa có kênh", ""))
         } else {
             visible.map { Tile((it + 1).toString(), chans[it].name, chans[it].group, favs.contains(chans[it].url)) }
         }
@@ -732,13 +732,13 @@ class MainActivity : Activity() {
         drawerAdapter = TileAdapter(u, tiles).also { it.selected = if (visible.isEmpty()) -1 else dsel }
         drawerRv.adapter = drawerAdapter
         drawerTitle.text = if (groupFilter == 0) "Chuyển kênh" else "Chuyển kênh · " + groupTitle(groupFilter)
-        if (visible.isNotEmpty()) center(drawerRv, dsel, 700)
+        if (visible.isNotEmpty()) center(drawerRv, dsel)
     }
 
     private fun buildGroups() {
         groupsAdapter = TileAdapter(u, groupTiles()).also { it.selected = gsel }
         groupsRv.adapter = groupsAdapter
-        center(groupsRv, gsel, 780)
+        center(groupsRv, gsel)
     }
 
     private fun openDrawer() {
@@ -761,7 +761,7 @@ class MainActivity : Activity() {
             it.selected = dsel
             it.notifyDataSetChanged()
         }
-        center(drawerRv, dsel, 700)
+        center(drawerRv, dsel)
     }
 
     private fun moveGroup(d: Int) {
@@ -771,7 +771,7 @@ class MainActivity : Activity() {
             it.selected = gsel
             it.notifyDataSetChanged()
         }
-        center(groupsRv, gsel, 780)
+        center(groupsRv, gsel)
         if (gsel < 2 + groupNames.size) {
             groupFilter = gsel
             computeVisible()
@@ -903,7 +903,7 @@ class MainActivity : Activity() {
                     up -> zap(-1)
                     down -> zap(1)
                     left -> openDrawer()
-                    ok -> showBar()
+                    ok -> openDrawer()
                     menu -> openSettings()
                     back -> finish()
                     else -> return super.dispatchKeyEvent(e)
@@ -961,6 +961,7 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
         stopServer()
+        videoAnimator?.cancel()
         exo.release()
         super.onDestroy()
     }
