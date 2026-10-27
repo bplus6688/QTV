@@ -41,16 +41,16 @@ import kotlin.concurrent.thread
 val C_BG = 0xFF0F1318.toInt()
 val C_SIDE = 0xFF0B0E12.toInt()
 val C_SURF = 0xFF1A2029.toInt()
-val C_TXT = 0xFF172B45.toInt()
-val C_MUT = 0xFF4C6077.toInt()
+val C_TXT = 0xFFF6F9FD.toInt()
+val C_MUT = 0xFFD4E0E8.toInt()
 val C_AMB = 0xFFFF9D2E.toInt()
 val C_AMB_TXT = 0xFFFFFFFF.toInt()
 val C_DARK = 0xFF3A4350.toInt()
 
-data class Chan(val name: String, val group: String, val url: String)
+data class Chan(val name: String, val group: String, val url: String, val logo: String = "")
 
 /** Một ô trong danh sách (kênh hoặc nhóm kênh). */
-data class Tile(val lead: String, val title: String, val sub: String, val star: Boolean = false)
+data class Tile(val lead: String, val title: String, val sub: String, val star: Boolean = false, val logo: String = "")
 
 /** Quy đổi kích thước thiết kế 1920x1080 sang pixel thật của màn hình. */
 class U(val s: Float) {
@@ -81,6 +81,7 @@ class TileAdapter(private val u: U, private val items: List<Tile>) :
     class VH(
         val root: LinearLayout,
         val lead: TextView,
+        val logo: ChannelLogo,
         val title: TextView,
         val sub: TextView,
         val star: TextView
@@ -96,8 +97,12 @@ class TileAdapter(private val u: U, private val items: List<Tile>) :
                 ViewGroup.LayoutParams.MATCH_PARENT, u.p(96)
             ).apply { bottomMargin = u.p(8) }
         }
-        val lead = mkText(ctx, u, 32, true).apply {
-            layoutParams = LinearLayout.LayoutParams(u.p(64), ViewGroup.LayoutParams.WRAP_CONTENT)
+        val lead = mkText(ctx, u, 22, true).apply {
+            layoutParams = LinearLayout.LayoutParams(u.p(42), ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        val logo = ChannelLogo(ctx, u).apply {
+            layoutParams = LinearLayout.LayoutParams(u.p(88), u.p(64))
+                .apply { marginEnd = u.p(16) }
         }
         val col = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
@@ -115,9 +120,10 @@ class TileAdapter(private val u: U, private val items: List<Tile>) :
         col.addView(title)
         col.addView(sub)
         root.addView(lead)
+        root.addView(logo)
         root.addView(col)
         root.addView(star)
-        return VH(root, lead, title, sub, star)
+        return VH(root, lead, logo, title, sub, star)
     }
 
     override fun getItemCount(): Int = items.size
@@ -127,13 +133,15 @@ class TileAdapter(private val u: U, private val items: List<Tile>) :
         val sel = i == selected
         h.lead.text = t.lead
         h.lead.visibility = if (t.lead.isEmpty()) View.GONE else View.VISIBLE
+        h.logo.visibility = if (t.lead.isEmpty()) View.GONE else View.VISIBLE
+        h.logo.bind(t.title, t.logo)
         h.title.text = t.title
         h.sub.text = t.sub
         h.sub.visibility = if (t.sub.isBlank()) View.GONE else View.VISIBLE
         h.star.visibility = if (t.star) View.VISIBLE else View.GONE
         h.root.background = if (sel) glass(u, 16).apply {
             setStroke(maxOf(2, u.p(3)), C_AMB)
-        } else rounded(0x55FFFFFF, u.f(16))
+        } else rounded(0x16FFFFFF, u.f(16))
         h.root.scaleX = 1f
         h.root.scaleY = 1f
         h.root.translationZ = if (sel) u.f(12) else 0f
@@ -147,9 +155,9 @@ class TileAdapter(private val u: U, private val items: List<Tile>) :
 // Translucent gradient and fine highlight, supported on Android 6+.
 fun glass(u: U, radius: Int = 22): GradientDrawable =
     GradientDrawable(GradientDrawable.Orientation.TL_BR,
-        intArrayOf(0xF5F6FCFF.toInt(), 0xDEE0EDF8.toInt())).apply {
+        intArrayOf(0xA94E6878.toInt(), 0xB52A3B4B.toInt())).apply {
         cornerRadius = u.f(radius)
-        setStroke(maxOf(1, u.p(2)), 0xCFFFFFFF.toInt())
+        setStroke(maxOf(1, u.p(2)), 0x70FFFFFF)
     }
 
 enum class Mode { WATCH, DRAWER, GROUPS, SOURCE, PREFERENCES }
@@ -163,6 +171,7 @@ class MainActivity : Activity() {
 
     // Thanh dưới: tên kênh (trái) + giờ, ngày (phải)
     private lateinit var bar: LinearLayout
+    private lateinit var barLogo: ChannelLogo
     private lateinit var barNum: TextView
     private lateinit var barName: TextView
     private lateinit var barGrp: TextView
@@ -179,7 +188,7 @@ class MainActivity : Activity() {
     private lateinit var msgView: TextView
 
     private lateinit var preferencesPanel: LinearLayout
-    private lateinit var gear: TextView
+    private val menuGears = mutableListOf<TextView>()
     private lateinit var updater: AppUpdater
     private lateinit var settings: FrameLayout
     private lateinit var qrImage: ImageView
@@ -326,11 +335,11 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         }
-        barNum = mkText(this, u, 38, true).apply {
+        barNum = mkText(this, u, 26, true).apply {
             gravity = Gravity.CENTER
             setTextColor(C_AMB_TXT)
-            background = rounded(C_AMB, u.f(16))
-            layoutParams = LinearLayout.LayoutParams(u.p(76), u.p(76))
+            background = rounded(0x28FFFFFF, u.f(12))
+            layoutParams = LinearLayout.LayoutParams(u.p(52), u.p(52))
         }
         val barCol = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -348,6 +357,9 @@ class MainActivity : Activity() {
         }
         barCol.addView(barName)
         barCol.addView(barGrp)
+        barLogo = ChannelLogo(this, u)
+        barLeft.addView(barLogo, LinearLayout.LayoutParams(u.p(150), u.p(94))
+            .apply { marginEnd = u.p(20) })
         barLeft.addView(barNum)
         barLeft.addView(barCol)
         val barRight = LinearLayout(this).apply {
@@ -365,11 +377,6 @@ class MainActivity : Activity() {
         }
         barRight.addView(barTime)
         barRight.addView(barDate)
-        bar.addView(ImageView(this).apply {
-            setImageResource(R.drawable.ic_launcher)
-            scaleType = ImageView.ScaleType.FIT_CENTER
-            contentDescription = "QTV"
-        }, LinearLayout.LayoutParams(u.p(80), u.p(80)).apply { marginEnd = u.p(24) })
         bar.addView(barLeft)
         bar.addView(barRight)
         root.addView(bar)
@@ -386,11 +393,14 @@ class MainActivity : Activity() {
         // Ngăn kéo chuyển kênh (bấm Trái khi đang xem)
         drawer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = glass(u, 0)
+            background = glass(u, 28)
+            clipToOutline = true
             setPadding(u.p(24), u.p(32), u.p(24), u.p(16))
             clipChildren = true
             clipToPadding = true
-            layoutParams = FrameLayout.LayoutParams(u.p(520), ViewGroup.LayoutParams.MATCH_PARENT)
+            layoutParams = FrameLayout.LayoutParams(u.p(504), ViewGroup.LayoutParams.MATCH_PARENT).apply {
+                setMargins(u.p(8), u.p(12), 0, u.p(12))
+            }
         }
         drawerTitle = mkText(this, u, 30, true).apply {
             maxLines = 1
@@ -407,11 +417,14 @@ class MainActivity : Activity() {
         // Bảng nhóm kênh (bấm Trái lần nữa)
         groupsPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = glass(u, 0)
+            background = glass(u, 28)
+            clipToOutline = true
             setPadding(u.p(20), u.p(32), u.p(20), u.p(16))
             clipChildren = true
             clipToPadding = true
-            layoutParams = FrameLayout.LayoutParams(u.p(340), ViewGroup.LayoutParams.MATCH_PARENT)
+            layoutParams = FrameLayout.LayoutParams(u.p(324), ViewGroup.LayoutParams.MATCH_PARENT).apply {
+                setMargins(u.p(8), u.p(12), 0, u.p(12))
+            }
         }
         val gTitle = mkText(this, u, 30, true).apply {
             text = "Nhóm kênh"
@@ -477,7 +490,7 @@ class MainActivity : Activity() {
                 Gravity.CENTER)
             visibility = View.GONE
         }
-        preferencesPanel.addView(brandHeader(mkText(this, u, 46, true).apply { text = "Cài đặt" }))
+        preferencesPanel.addView(brandHeader(mkText(this, u, 46, true).apply { text = "Cài đặt" }, false))
         fun option(title: String, action: () -> Unit) {
             preferencesPanel.addView(mkText(this, u, 34, true).apply {
                 text = title
@@ -486,7 +499,7 @@ class MainActivity : Activity() {
                 isFocusable = true
                 isFocusableInTouchMode = true
                 isClickable = true
-                background = rounded(0x55FFFFFF, u.f(16))
+                background = rounded(0x16FFFFFF, u.f(16))
                 layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, u.p(92))
                     .apply { bottomMargin = u.p(16) }
                 setOnFocusChangeListener { v, focus ->
@@ -511,25 +524,6 @@ class MainActivity : Activity() {
             setPadding(0, u.p(12), 0, 0)
         })
         root.addView(preferencesPanel)
-        gear = mkText(this, u, 48, true).apply {
-            text = "⚙"
-            contentDescription = "Cài đặt"
-            gravity = Gravity.CENTER
-            background = glass(u, 18)
-            isFocusable = true
-            isFocusableInTouchMode = true
-            isClickable = true
-            layoutParams = FrameLayout.LayoutParams(u.p(80), u.p(80), Gravity.TOP or Gravity.END)
-                .apply { topMargin = u.p(36); marginEnd = u.p(40) }
-            setOnFocusChangeListener { v, focus ->
-                v.background = glass(u, 18).apply {
-                    if (focus) setStroke(maxOf(2, u.p(3)), C_AMB)
-                }
-            }
-            setOnClickListener { openPreferences() }
-        }
-        root.addView(gear)
-
         // Số kênh đang nhập
         numView = mkText(this, u, 96, true).apply {
             setTextColor(C_AMB)
@@ -563,7 +557,7 @@ class MainActivity : Activity() {
     // ================= Chế độ màn hình =================
     private fun setMode(m: Mode) {
         mode = m
-        if (m != Mode.WATCH) gear.clearFocus()
+        menuGears.forEach { it.clearFocus() }
         val panels = m == Mode.DRAWER || m == Mode.GROUPS
         dim.visibility = if (panels) View.VISIBLE else View.GONE
         drawer.visibility = if (panels) View.VISIBLE else View.GONE
@@ -571,7 +565,6 @@ class MainActivity : Activity() {
         groupsPanel.visibility = if (m == Mode.GROUPS) View.VISIBLE else View.GONE
         settings.visibility = if (m == Mode.SOURCE) View.VISIBLE else View.GONE
         preferencesPanel.visibility = if (m == Mode.PREFERENCES) View.VISIBLE else View.GONE
-        gear.visibility = if (m == Mode.WATCH || m == Mode.DRAWER || m == Mode.GROUPS) View.VISIBLE else View.GONE
         if (m != Mode.WATCH) {
             handler.removeCallbacks(hideBarRun)
             handler.removeCallbacks(clockRun)
@@ -603,17 +596,32 @@ class MainActivity : Activity() {
         pv.requestLayout()
     }
 
-    private fun brandHeader(title: TextView): LinearLayout = LinearLayout(this).apply {
+    private fun brandHeader(title: TextView, showSettings: Boolean = true): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
         layoutParams = LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, u.p(104)
         ).apply { bottomMargin = u.p(16) }
-        addView(ImageView(this@MainActivity).apply {
-            setImageResource(R.drawable.ic_launcher)
-            scaleType = ImageView.ScaleType.FIT_CENTER
-            contentDescription = "QTV"
-        }, LinearLayout.LayoutParams(u.p(76), u.p(76)).apply { marginEnd = u.p(16) })
+        if (showSettings) {
+            val button = mkText(this@MainActivity, u, 46, true).apply {
+                text = "⚙"
+                contentDescription = "Cài đặt"
+                gravity = Gravity.CENTER
+                isFocusable = true
+                isFocusableInTouchMode = true
+                isClickable = true
+                background = glass(u, 18)
+                setOnFocusChangeListener { v, focused ->
+                    v.background = glass(u, 18).apply {
+                        if (focused) setStroke(maxOf(2, u.p(3)), C_AMB)
+                    }
+                }
+                setOnClickListener { openPreferences() }
+            }
+            menuGears.add(button)
+            addView(button, LinearLayout.LayoutParams(u.p(76), u.p(76))
+                .apply { marginEnd = u.p(16) })
+        }
         title.setPadding(0, 0, 0, 0)
         addView(title, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
     }
@@ -637,6 +645,7 @@ class MainActivity : Activity() {
     private fun showBar() {
         if (mode != Mode.WATCH) return
         val c = chans.getOrNull(cur) ?: return
+        barLogo.bind(c.name, c.logo)
         barNum.text = (cur + 1).toString()
         barName.text = c.name
         barGrp.text = c.group
@@ -751,6 +760,8 @@ class MainActivity : Activity() {
         val out = ArrayList<Chan>()
         var name = ""
         var grp = ""
+        var logo = ""
+        val reLogo = Regex("""tvg-logo\s*=\s*["']([^"']*)["']""", RegexOption.IGNORE_CASE)
         val reName = Regex("tvg-name=\"([^\"]*)\"")
         val reGrp = Regex("group-title=\"([^\"]*)\"")
         for (raw in txt.lines()) {
@@ -761,10 +772,12 @@ class MainActivity : Activity() {
                 name = if (c >= 0) l.substring(c + 1).trim() else ""
                 if (name.isEmpty()) name = reName.find(l)?.groupValues?.get(1) ?: ""
                 grp = (reGrp.find(l)?.groupValues?.get(1) ?: "").trim()
+                logo = (reLogo.find(l)?.groupValues?.get(1) ?: "").trim()
             } else if (!l.startsWith("#")) {
-                out.add(Chan(name.ifEmpty { "Kênh ${out.size + 1}" }, grp, l))
+                out.add(Chan(name.ifEmpty { "Kênh ${out.size + 1}" }, grp, l, logo))
                 name = ""
                 grp = ""
+                logo = ""
             }
         }
         return out
@@ -830,7 +843,7 @@ class MainActivity : Activity() {
         val tiles = if (visible.isEmpty()) {
             listOf(Tile("", "Chưa có kênh", ""))
         } else {
-            visible.map { Tile((it + 1).toString(), chans[it].name, chans[it].group, favs.contains(chans[it].url)) }
+            visible.map { Tile((it + 1).toString(), chans[it].name, chans[it].group, favs.contains(chans[it].url), chans[it].logo) }
         }
         if (dsel >= visible.size) dsel = maxOf(0, visible.size - 1)
         drawerAdapter = TileAdapter(u, tiles).also { it.selected = if (visible.isEmpty()) -1 else dsel }
@@ -978,7 +991,7 @@ class MainActivity : Activity() {
         if (mode == Mode.PREFERENCES) {
             if (back) {
                 setMode(Mode.WATCH)
-                gear.requestFocus()
+                root.requestFocus()
                 return true
             }
             return super.dispatchKeyEvent(e)
@@ -991,12 +1004,17 @@ class MainActivity : Activity() {
             return super.dispatchKeyEvent(e)
         }
 
-        if (gear.hasFocus() && ok) {
+        if (menuGears.any { it.hasFocus() } && ok) {
             if (e.repeatCount == 0) openPreferences()
             return true
         }
         if (mode == Mode.WATCH && right) {
-            gear.requestFocus()
+            openPreferences()
+            return true
+        }
+        if (menuGears.any { it.hasFocus() } && (up || down)) {
+            menuGears.forEach { it.clearFocus() }
+            root.requestFocus()
             return true
         }
         if (chans.isEmpty()) {
@@ -1039,7 +1057,7 @@ class MainActivity : Activity() {
 
             Mode.DRAWER -> {
                 when {
-                    up -> moveDrawer(-1)
+                    up -> if (dsel == 0) menuGears[0].requestFocus() else moveDrawer(-1)
                     down -> moveDrawer(1)
                     ok -> {
                         if (e.repeatCount == 0) {
@@ -1058,7 +1076,7 @@ class MainActivity : Activity() {
 
             Mode.GROUPS -> {
                 when {
-                    up -> moveGroup(-1)
+                    up -> if (gsel == 0) menuGears[1].requestFocus() else moveGroup(-1)
                     down -> moveGroup(1)
                     ok || right -> chooseGroup()
                     back -> setMode(Mode.DRAWER)
