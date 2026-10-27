@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dán link playlist M3U vào giữa hai thẻ. Hoặc để trống và nhập khi chạy workflow trên GitHub. -->
+    <string name="playlist_url" formatted="false"></string>
+</resources>
