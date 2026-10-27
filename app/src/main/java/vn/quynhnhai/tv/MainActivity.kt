@@ -149,7 +149,7 @@ fun glass(u: U, radius: Int = 22): GradientDrawable =
     GradientDrawable(GradientDrawable.Orientation.TL_BR,
         intArrayOf(0xF5F6FCFF.toInt(), 0xDEE0EDF8.toInt())).apply {
         cornerRadius = u.f(radius)
-        setStroke(maxOf(1, u.p(2)), 0xCFFFFFFF)
+        setStroke(maxOf(1, u.p(2)), 0xCFFFFFFF.toInt())
     }
 
 enum class Mode { WATCH, DRAWER, GROUPS, SOURCE, PREFERENCES }
